@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🚗 ระบบตรวจจับอาการหลับใน | Drowsy Driver Detection</title>
+    <meta name="description" content="ระบบ AI ตรวจจับอาการหลับในขณะขับรถ ด้วย Teachable Machine">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- เอฟเฟกต์ particles พื้นหลัง -->
+    <div class="particles" id="particles"></div>
+
+    <!-- แถบสแกนไลน์จำลองจอ HUD -->
+    <div class="scanline"></div>
+
+    <!-- หน้าจอหลัก -->
+    <div class="dashboard-container">
+        
+        <!-- Header แบบ HUD -->
+        <header class="hud-header">
+            <div class="hud-corner top-left"></div>
+            <div class="hud-corner top-right"></div>
+            <div class="header-content">
+                <div class="logo-section">
+                    <div class="logo-icon">
+                        <svg viewBox="0 0 64 64" width="48" height="48">
+                            <circle cx="32" cy="32" r="28" fill="none" stroke="currentColor" stroke-width="2" opacity="0.5"/>
+                            <path d="M20 38 Q32 18 44 38" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+                            <circle cx="32" cy="30" r="4" fill="currentColor"/>
+                            <path d="M24 36 Q32 28 40 36" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.6"/>
+                        </svg>
+                    </div>
+                    <div class="logo-text">
+                        <h1>DRIVER MONITOR</h1>
+                        <span class="subtitle">AI-Powered Safety System v2.0</span>
+                    </div>
+                </div>
+                <div class="header-stats">
+                    <div class="stat-item">
+                        <span class="stat-label">เวลา</span>
+                        <span class="stat-value" id="clock">--:--:--</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">FPS</span>
+                        <span class="stat-value" id="fps-counter">--</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            
+            <!-- คอลัมน์ซ้าย: กล้อง -->
+            <section class="camera-section">
+                <div class="section-title">
+                    <div class="title-dot"></div>
+                    <span>LIVE CAMERA FEED</span>
+                    <div class="rec-indicator" id="rec-indicator">
+                        <div class="rec-dot"></div>
+                        REC
+                    </div>
+                </div>
+                <div class="camera-wrapper">
+                    <div class="camera-frame">
+                        <div class="corner-bracket top-left"></div>
+                        <div class="corner-bracket top-right"></div>
+                        <div class="corner-bracket bottom-left"></div>
+                        <div class="corner-bracket bottom-right"></div>
+                        <div id="webcam-container"></div>
+                        <div class="camera-overlay">
+                            <div class="face-target" id="face-target"></div>
+                        </div>
+                    </div>
+                </div>
+                <button class="start-button" id="start-btn" onclick="init()">
+                    <span class="btn-icon">⚡</span>
+                    <span class="btn-text">เริ่มระบบตรวจจับ</span>
+                    <span class="btn-glow"></span>
+                </button>
+            </section>
+
+            <!-- คอลัมน์ขวา: สถานะ + กราฟ -->
+            <section class="status-section">
+                
+                <!-- Status Card หลัก -->
+                <div class="status-card" id="status-card">
+                    <div class="status-icon-wrapper">
+                        <div class="status-ring" id="status-ring">
+                            <svg viewBox="0 0 120 120">
+                                <circle cx="60" cy="60" r="54" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="4"/>
+                                <circle cx="60" cy="60" r="54" fill="none" stroke="currentColor" stroke-width="4" 
+                                    stroke-dasharray="339.292" stroke-dashoffset="339.292" id="progress-ring"
+                                    stroke-linecap="round" transform="rotate(-90 60 60)"/>
+                            </svg>
+                            <div class="status-emoji" id="status-emoji">🚗</div>
+                        </div>
+                    </div>
+                    <div class="status-text-wrapper">
+                        <div class="status-label">DRIVER STATUS</div>
+                        <div class="status-main" id="status-text">รอเริ่มระบบ...</div>
+                        <div class="status-sub" id="status-sub">กดปุ่มด้านล่างเพื่อเปิดกล้อง</div>
+                    </div>
+                </div>
+
+                <!-- Confidence Bars -->
+                <div class="confidence-panel">
+                    <div class="section-title">
+                        <div class="title-dot"></div>
+                        <span>AI CONFIDENCE LEVEL</span>
+                    </div>
+                    
+                    <div class="confidence-item awake-bar">
+                        <div class="conf-header">
+                            <span class="conf-icon">😊</span>
+                            <span class="conf-label">Awake (ตื่นตัว)</span>
+                            <span class="conf-value" id="awake-value">0%</span>
+                        </div>
+                        <div class="conf-bar-track">
+                            <div class="conf-bar-fill awake-fill" id="awake-bar" style="width: 0%"></div>
+                        </div>
+                    </div>
+
+                    <div class="confidence-item drowsy-bar">
+                        <div class="conf-header">
+                            <span class="conf-icon">😴</span>
+                            <span class="conf-label">Drowsy (หลับใน)</span>
+                            <span class="conf-value" id="drowsy-value">0%</span>
+                        </div>
+                        <div class="conf-bar-track">
+                            <div class="conf-bar-fill drowsy-fill" id="drowsy-bar" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- History Timeline -->
+                <div class="history-panel">
+                    <div class="section-title">
+                        <div class="title-dot"></div>
+                        <span>DETECTION LOG</span>
+                    </div>
+                    <div class="history-list" id="history-list">
+                        <div class="history-empty">ยังไม่มีข้อมูล...</div>
+                    </div>
+                </div>
+
+                <!-- Stats -->
+                <div class="stats-panel">
+                    <div class="stat-box">
+                        <div class="stat-box-value" id="total-alerts">0</div>
+                        <div class="stat-box-label">การเตือน</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-box-value" id="uptime">00:00</div>
+                        <div class="stat-box-label">เวลาทำงาน</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-box-value safe-color" id="safe-percent">--%</div>
+                        <div class="stat-box-label">ปลอดภัย</div>
+                    </div>
+                </div>
+
+            </section>
+        </main>
+
+        <!-- Footer -->
+        <footer class="hud-footer">
+            <span>🛡️ AI Drowsy Driver Detection System</span>
+            <span>Powered by Teachable Machine + TensorFlow.js</span>
+        </footer>
+    </div>
+
+    <!-- Alert Overlay (แจ้งเตือนเต็มจอ) -->
+    <div class="alert-overlay" id="alert-overlay">
+        <div class="alert-content">
+            <div class="alert-icon">⚠️</div>
+            <div class="alert-title">ตรวจพบอาการหลับใน!</div>
+            <div class="alert-message">กรุณาพักรถทันที</div>
+        </div>
+    </div>
+
+    <!-- TensorFlow.js & Teachable Machine Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
